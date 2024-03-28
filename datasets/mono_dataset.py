@@ -15,6 +15,7 @@ from PIL import Image  # using pillow-simd for increased speed
 import torch
 import torch.utils.data as data
 from torchvision import transforms
+from torchvision.transforms.functional import InterpolationMode
 
 
 def pil_loader(path):
@@ -38,6 +39,7 @@ class MonoDataset(data.Dataset):
         is_train
         img_ext
     """
+
     def __init__(self,
                  data_path,
                  filenames,
@@ -54,7 +56,7 @@ class MonoDataset(data.Dataset):
         self.height = height
         self.width = width
         self.num_scales = num_scales
-        self.interp = Image.ANTIALIAS
+        self.interp = InterpolationMode.BICUBIC
 
         self.frame_idxs = frame_idxs
 
@@ -144,7 +146,8 @@ class MonoDataset(data.Dataset):
         folder = line[0]
 
         if len(line) == 3:
-            frame_index = int(line[1])
+            # fix： AutoMine使用float， KITTI使用int
+            frame_index = float(line[1])
         else:
             frame_index = 0
 
@@ -173,8 +176,7 @@ class MonoDataset(data.Dataset):
             inputs[("inv_K", scale)] = torch.from_numpy(inv_K)
 
         if do_color_aug:
-            color_aug = transforms.ColorJitter.get_params(
-                self.brightness, self.contrast, self.saturation, self.hue)
+            color_aug = transforms.ColorJitter(self.brightness, self.contrast, self.saturation, self.hue)
         else:
             color_aug = (lambda x: x)
 
@@ -184,10 +186,12 @@ class MonoDataset(data.Dataset):
             del inputs[("color", i, -1)]
             del inputs[("color_aug", i, -1)]
 
-        if self.load_depth:
-            depth_gt = self.get_depth(folder, frame_index, side, do_flip)
-            inputs["depth_gt"] = np.expand_dims(depth_gt, 0)
-            inputs["depth_gt"] = torch.from_numpy(inputs["depth_gt"].astype(np.float32))
+        # fix：针对AutoMines数据集只有验证集有真值，增加训练标志位训练判读
+        if not self.is_train:
+            if self.load_depth:
+                depth_gt = self.get_depth(folder, frame_index, side, do_flip)
+                inputs["depth_gt"] = np.expand_dims(depth_gt, 0)
+                inputs["depth_gt"] = torch.from_numpy(inputs["depth_gt"].astype(np.float32))
 
         if "s" in self.frame_idxs:
             stereo_T = np.eye(4, dtype=np.float32)
