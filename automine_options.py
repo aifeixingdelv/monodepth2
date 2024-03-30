@@ -49,7 +49,7 @@ class MonodepthOptions:
         self.parser.add_argument("--png",
                                  help="if set, trains from raw KITTI png files (instead of jpgs)",
                                  action="store_true",
-                                 default="True")
+                                 default=True)
         self.parser.add_argument("--height",
                                  type=int,
                                  help="input image height",
@@ -61,7 +61,7 @@ class MonodepthOptions:
         self.parser.add_argument("--disparity_smoothness",
                                  type=float,
                                  help="disparity smoothness weight",
-                                 default=1e-3)
+                                 default=1e-5)
         self.parser.add_argument("--scales",
                                  nargs="+",
                                  type=int,
@@ -88,11 +88,11 @@ class MonodepthOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=10)
+                                 default=8)
         self.parser.add_argument("--learning_rate",
                                  type=float,
                                  help="learning rate",
-                                 default=1e-6)
+                                 default=1e-4)
         self.parser.add_argument("--num_epochs",
                                  type=int,
                                  help="number of epochs",
@@ -112,15 +112,15 @@ class MonodepthOptions:
         self.parser.add_argument("--disable_automasking",
                                  help="if set, doesn't do auto-masking",
                                  action="store_true",
-                                 default="True")
+                                 default=False)
         self.parser.add_argument("--predictive_mask",
                                  help="if set, uses a predictive masking scheme as in Zhou et al",
                                  action="store_true",
-                                 default="True")
+                                 default=False)
         self.parser.add_argument("--no_ssim",
                                  help="if set, disables ssim in the loss",
                                  action="store_true",
-                                 default="False")
+                                 default=False)
         self.parser.add_argument("--weights_init",
                                  type=str,
                                  help="pretrained or scratch",
@@ -150,7 +150,7 @@ class MonodepthOptions:
         self.parser.add_argument("--load_weights_folder",
                                  type=str,
                                  help="name of model to load",
-                                 default="models/mono_640x192")
+                                 default=None)
         self.parser.add_argument("--models_to_load",
                                  nargs="+",
                                  type=str,
@@ -158,25 +158,34 @@ class MonodepthOptions:
                                  default=["encoder", "depth", "pose_encoder", "pose"])
 
         # LOGGING options
+        # fix：弃用
         self.parser.add_argument("--log_frequency",
                                  type=int,
                                  help="number of batches between each tensorboard log",
                                  default=250)
+        # fix：弃用，依据step保存
         self.parser.add_argument("--save_frequency",
                                  type=int,
                                  help="number of epochs between each save",
                                  default=1)
 
         # EVALUATION options
+        self.parser.add_argument("--load_best_weights_folder",
+                                 type=str,
+                                 help="name of model to load",
+                                 default="logs/mono_640x192_20240329_01/best_weights")
         self.parser.add_argument("--eval_stereo",
                                  help="if set evaluates in stereo mode",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=False)
         self.parser.add_argument("--eval_mono",
                                  help="if set evaluates in mono mode",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=True)
         self.parser.add_argument("--disable_median_scaling",
                                  help="if set disables median scaling in evaluation",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=False)
         self.parser.add_argument("--pred_depth_scale_factor",
                                  help="if set multiplies predictions by this number",
                                  type=float,
@@ -186,16 +195,26 @@ class MonodepthOptions:
                                  help="optional path to a .npy disparities file to evaluate")
         self.parser.add_argument("--eval_split",
                                  type=str,
-                                 default="eigen",
+                                 default="automine_depth",
                                  choices=[
-                                     "eigen", "eigen_benchmark", "benchmark", "odom_9", "odom_10"],
+                                     "eigen", "eigen_benchmark", "benchmark", "odom_9", "odom_10", "automine_depth"],
                                  help="which split to run eval on")
         self.parser.add_argument("--save_pred_disps",
                                  help="if set saves predicted disparities",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=True)
+        self.parser.add_argument("--save_pred_depths",
+                                 help="if set saves predicted depths",
+                                 action="store_true",
+                                 default=True)
+        self.parser.add_argument("--save_pred_metrics",
+                                 help="if set saves predicted metrics",
+                                 action="store_true",
+                                 default=True)
         self.parser.add_argument("--no_eval",
                                  help="if set disables evaluation",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=False)
         self.parser.add_argument("--eval_eigen_to_benchmark",
                                  help="if set assume we are loading eigen results from npy but "
                                       "we want to evaluate using the new benchmark.",
@@ -206,7 +225,8 @@ class MonodepthOptions:
         self.parser.add_argument("--post_process",
                                  help="if set will perform the flipping post processing "
                                       "from the original monodepth paper",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=False)
 
     def parse(self):
         self.options = self.parser.parse_args()

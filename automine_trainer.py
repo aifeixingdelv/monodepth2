@@ -189,8 +189,8 @@ class Trainer:
         self.start_time = time.time()
         for self.epoch in range(self.opt.num_epochs):
             self.run_epoch()
-            if (self.epoch + 1) % self.opt.save_frequency == 0:
-                self.save_model()
+            # if (self.epoch + 1) % self.opt.save_frequency == 0:
+            #     self.save_model()
 
     def run_epoch(self):
         """Run a single epoch of training and validation
@@ -217,13 +217,11 @@ class Trainer:
             # late_phase = self.step % 2000 == 0
             if not self.step % 2500:
                 self.log_time(batch_idx, duration, losses["loss"].cpu().data)
-
+                self.save_model()
                 if "depth_gt" in inputs:
                     self.compute_depth_losses(inputs, outputs, losses)
-
                 self.log("train", inputs, outputs, losses)
                 self.val()
-
             self.step += 1
 
     def process_batch(self, inputs):
@@ -586,7 +584,7 @@ class Trainer:
     def save_model(self):
         """Save model weights to disk
         """
-        save_folder = os.path.join(self.log_path, "models", "weights_{}".format(self.epoch))
+        save_folder = os.path.join(self.log_path, "models", "weights_{:.1f}k".format(self.step / 1000))
         if not os.path.exists(save_folder):
             os.makedirs(save_folder)
 
