@@ -39,7 +39,7 @@ class MonodepthOptions:
         self.parser.add_argument("--num_layers",
                                  type=int,
                                  help="number of resnet layers",
-                                 default=18,
+                                 default=50,
                                  choices=[18, 34, 50, 101, 152])
         self.parser.add_argument("--dataset",
                                  type=str,
@@ -88,7 +88,7 @@ class MonodepthOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=8)
+                                 default=4)
         self.parser.add_argument("--learning_rate",
                                  type=float,
                                  help="learning rate",
@@ -100,7 +100,7 @@ class MonodepthOptions:
         self.parser.add_argument("--scheduler_step_size",
                                  type=int,
                                  help="step size of the scheduler",
-                                 default=40)
+                                 default=20)
 
         # ABLATION options
         self.parser.add_argument("--v1_multiscale",
