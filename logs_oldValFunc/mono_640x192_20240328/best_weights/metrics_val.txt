@@ -1,0 +1,13 @@
+abs_rel:0.148   
+sq_rel:4.255   
+rmse:4.560   
+rmse_log:0.210   
+a1:0.934   
+a2:0.971   
+a3:0.977   
+
+Scaling ratios 
+--med: 29.899
+--std: 0.089
+--max: 46.625
+--min: 15.155

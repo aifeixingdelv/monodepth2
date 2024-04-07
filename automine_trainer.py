@@ -117,7 +117,7 @@ class Trainer:
         print("Using dataset ", self.opt.dataset)
         self.dataset = datasets_dict[self.opt.dataset]
 
-        fpath = os.path.join(self.opt.data_path, "AutoMine_Depth","AutoMine_Depth_{}.txt")
+        fpath = os.path.join(self.opt.data_path, "AutoMine_Depth", "AutoMine_Depth_{}.txt")
 
         train_filenames = readlines(fpath.format("train"))
         val_filenames = readlines(fpath.format("val"))
@@ -136,9 +136,9 @@ class Trainer:
             self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
             self.opt.frame_ids, 4, is_train=False, img_ext=img_ext)
         self.val_loader = DataLoader(
-            val_dataset, self.opt.batch_size, True,
+            val_dataset, self.opt.batch_size, False,
             num_workers=self.opt.num_workers, pin_memory=True, drop_last=True)
-        self.val_iter = iter(self.val_loader)
+        # self.val_iter = iter(self.val_loader)
 
         self.writers = {}
         for mode in ["train", "val"]:
@@ -221,7 +221,7 @@ class Trainer:
                 if "depth_gt" in inputs:
                     self.compute_depth_losses(inputs, outputs, losses)
                 self.log("train", inputs, outputs, losses)
-                self.val()
+                self.val_all()
             self.step += 1
 
     def process_batch(self, inputs):
@@ -316,6 +316,31 @@ class Trainer:
 
         return outputs
 
+    def val_all(self):
+        """Validate the model on the whole validation set
+        """
+        self.set_eval()
+        losses_dict = {}
+        for batch_idx, inputs in enumerate(self.val_loader):
+            losses = {}
+            with torch.no_grad():
+                outputs, losses = self.process_batch(inputs)
+                if "depth_gt" in inputs:
+                    self.compute_depth_losses(inputs, outputs, losses)
+            for metric, value in losses.items():
+                if isinstance(value, torch.Tensor):
+                    value_np = value.detach().cpu().numpy()
+                elif isinstance(value, np.ndarray):
+                    value_np = value
+                if metric not in losses_dict:
+                    losses_dict[metric] = []
+                losses_dict[metric].append(value_np)
+        for metric in losses_dict:
+            losses_dict[metric] = np.mean(losses_dict[metric])
+        self.log("val", inputs, outputs, losses_dict)
+        del inputs, outputs, losses, losses_dict
+        self.set_train()
+
     def val(self):
         """Validate the model on a single minibatch
         """
@@ -363,7 +388,6 @@ class Trainer:
 
                 # from the authors of https://arxiv.org/abs/1712.00175
                 if self.opt.pose_model_type == "posecnn":
-
                     axisangle = outputs[("axisangle", 0, frame_id)]
                     translation = outputs[("translation", 0, frame_id)]
 
@@ -478,7 +502,7 @@ class Trainer:
 
             if not self.opt.disable_automasking:
                 outputs["identity_selection/{}".format(scale)] = (
-                    idxs > identity_reprojection_loss.shape[1] - 1).float()
+                        idxs > identity_reprojection_loss.shape[1] - 1).float()
 
             loss += to_optimise.mean()
 
@@ -530,9 +554,9 @@ class Trainer:
         samples_per_sec = self.opt.batch_size / duration
         time_sofar = time.time() - self.start_time
         training_time_left = (
-            self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
+                                     self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
         print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
-            " | loss: {:.5f} | time elapsed: {} | time left: {}"
+                       " | loss: {:.5f} | time elapsed: {} | time left: {}"
         print(print_string.format(self.epoch, batch_idx, samples_per_sec, loss,
                                   sec_to_hm_str(time_sofar), sec_to_hm_str(training_time_left)))
 

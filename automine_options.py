@@ -30,7 +30,7 @@ class MonodepthOptions:
         self.parser.add_argument("--model_name",
                                  type=str,
                                  help="the name of the folder to save the model in",
-                                 default="mono_640x192")
+                                 default="mono_640x192_res18_ft")
         self.parser.add_argument("--split",
                                  type=str,
                                  help="which training split to use",
@@ -39,7 +39,7 @@ class MonodepthOptions:
         self.parser.add_argument("--num_layers",
                                  type=int,
                                  help="number of resnet layers",
-                                 default=50,
+                                 default=18,
                                  choices=[18, 34, 50, 101, 152])
         self.parser.add_argument("--dataset",
                                  type=str,
@@ -74,7 +74,7 @@ class MonodepthOptions:
         self.parser.add_argument("--max_depth",
                                  type=float,
                                  help="maximum depth",
-                                 default=100.0)
+                                 default=100)
         self.parser.add_argument("--use_stereo",
                                  help="if set, uses stereo pair for training",
                                  action="store_true")
@@ -88,7 +88,7 @@ class MonodepthOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=4)
+                                 default=8)
         self.parser.add_argument("--learning_rate",
                                  type=float,
                                  help="learning rate",
@@ -150,7 +150,9 @@ class MonodepthOptions:
         self.parser.add_argument("--load_weights_folder",
                                  type=str,
                                  help="name of model to load",
-                                 default=None)
+                                 # default=None)
+                                default = "models/mono_640x192")
+
         self.parser.add_argument("--models_to_load",
                                  nargs="+",
                                  type=str,
@@ -202,11 +204,11 @@ class MonodepthOptions:
         self.parser.add_argument("--save_pred_disps",
                                  help="if set saves predicted disparities",
                                  action="store_true",
-                                 default=True)
+                                 default=False)
         self.parser.add_argument("--save_pred_depths",
                                  help="if set saves predicted depths",
                                  action="store_true",
-                                 default=True)
+                                 default=False)
         self.parser.add_argument("--save_pred_metrics",
                                  help="if set saves predicted metrics",
                                  action="store_true",

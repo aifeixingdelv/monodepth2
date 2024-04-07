@@ -101,7 +101,7 @@ def evaluate(opt):
                                                 encoder_dict['height'], encoder_dict['width'],
                                                 [0], 4, is_train=False, img_ext='.png')
         dataloader = DataLoader(dataset, 8, shuffle=False, num_workers=opt.num_workers,
-                                pin_memory=True, drop_last=False)
+                                pin_memory=True, drop_last=True)
 
         encoder = networks.ResnetEncoder(opt.num_layers, False)
         depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
@@ -189,6 +189,7 @@ def evaluate(opt):
 
         pred_disp = pred_disps[i]
         pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))
+        # _, pred_depth = disp_to_depth(pred_disp, 0.1, 100.0)
         pred_depth = 1 / pred_disp
         pred_depth_color = pred_depth.copy()
 
@@ -201,14 +202,12 @@ def evaluate(opt):
             ratio = np.median(gt_depth) / np.median(pred_depth)
             ratios.append(ratio)
             pred_depth *= ratio
-            if i % 10 == 0:
+            if opt.save_pred_depths:
                 pred_depth_color *= ratio
-                pred_depth_color += 7
                 pred_depth_color[pred_depth_color < MIN_DEPTH] = MIN_DEPTH
                 pred_depth_color[pred_depth_color > MAX_DEPTH] = MAX_DEPTH
-                if opt.save_pred_depths:
-                    color_depth_map = Image.fromarray(colorize(pred_depth_color, MIN_DEPTH, MAX_DEPTH), mode='RGB')
-                    color_depth_map.save(os.path.join(save_depths_dir, "{}.png".format(frame_id_str)))
+                color_depth_map = Image.fromarray(colorize(pred_depth_color, MIN_DEPTH, MAX_DEPTH), mode='RGB')
+                color_depth_map.save(os.path.join(save_depths_dir, "{}.png".format(frame_id_str)))
 
         pred_depth[pred_depth < MIN_DEPTH] = MIN_DEPTH
         pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH
@@ -230,9 +229,10 @@ def evaluate(opt):
             for name, value in zip(depth_metric_names, mean_errors.tolist()):
                 f.write("{}:{:<8.3f}\n".format(name, value))
             f.write("\n")
-            f.write("Scaling ratios: \n-med: {:0.3f}\n-std: {:0.3f}\n-max: {:0.3f}\n-min: {:0.3f}"
-                    .format(med, np.std(ratios / med), max, min))
-            f.write("\n")
+            if not opt.disable_median_scaling:
+                f.write("Scaling ratios \n--med: {:0.3f}\n--std: {:0.3f}\n--max: {:0.3f}\n--min: {:0.3f}"
+                        .format(med, np.std(ratios / med), max, min))
+                f.write("\n")
             f.close()
     print("-> Done!")
 
