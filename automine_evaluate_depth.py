@@ -14,6 +14,7 @@ import datasets
 import networks
 import matplotlib.cm
 from PIL import Image
+from layers import *
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
@@ -100,10 +101,10 @@ def evaluate(opt):
         dataset = datasets.AutoMineDepthDataset(opt.data_path, filenames,
                                                 encoder_dict['height'], encoder_dict['width'],
                                                 [0], 4, is_train=False, img_ext='.png')
-        dataloader = DataLoader(dataset, 8, shuffle=False, num_workers=opt.num_workers,
+        dataloader = DataLoader(dataset, opt.batch_size, shuffle=False, num_workers=opt.num_workers,
                                 pin_memory=True, drop_last=True)
 
-        encoder = networks.ResnetEncoder(opt.num_layers, False)
+        encoder = networks.ResnetEncoder(opt.num_layers, True)
         depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
 
         model_dict = encoder.state_dict()
@@ -123,7 +124,7 @@ def evaluate(opt):
 
         with torch.no_grad():
             for data in dataloader:
-                input_color = data[("color", 0, 0)].cuda()
+                input_color = data[("color_aug", 0, 0)].cuda()
 
                 if opt.post_process:
                     # Post-processed results require each image to have two forward passes
@@ -189,7 +190,6 @@ def evaluate(opt):
 
         pred_disp = pred_disps[i]
         pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))
-        # _, pred_depth = disp_to_depth(pred_disp, 0.1, 100.0)
         pred_depth = 1 / pred_disp
         pred_depth_color = pred_depth.copy()
 
@@ -211,7 +211,6 @@ def evaluate(opt):
 
         pred_depth[pred_depth < MIN_DEPTH] = MIN_DEPTH
         pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH
-
         errors.append(compute_errors(gt_depth, pred_depth))
 
     if not opt.disable_median_scaling:
@@ -227,10 +226,10 @@ def evaluate(opt):
         print("-> Saving predicted metrics to ", output_path)
         with open(output_path, 'w') as f:
             for name, value in zip(depth_metric_names, mean_errors.tolist()):
-                f.write("{}:{:<8.3f}\n".format(name, value))
+                f.write("{}:{:<8.4f}\n".format(name, value))
             f.write("\n")
             if not opt.disable_median_scaling:
-                f.write("Scaling ratios \n--med: {:0.3f}\n--std: {:0.3f}\n--max: {:0.3f}\n--min: {:0.3f}"
+                f.write("Scaling ratios \n--med: {:0.4f}\n--std: {:0.4f}\n--max: {:0.4f}\n--min: {:0.4f}"
                         .format(med, np.std(ratios / med), max, min))
                 f.write("\n")
             f.close()

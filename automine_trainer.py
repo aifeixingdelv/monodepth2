@@ -222,6 +222,7 @@ class Trainer:
                     self.compute_depth_losses(inputs, outputs, losses)
                 self.log("train", inputs, outputs, losses)
                 self.val_all()
+
             self.step += 1
 
     def process_batch(self, inputs):

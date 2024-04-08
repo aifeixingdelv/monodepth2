@@ -88,7 +88,7 @@ class MonodepthOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=8)
+                                 default=4)
         self.parser.add_argument("--learning_rate",
                                  type=float,
                                  help="learning rate",
@@ -105,10 +105,12 @@ class MonodepthOptions:
         # ABLATION options
         self.parser.add_argument("--v1_multiscale",
                                  help="if set, uses monodepth v1 multiscale",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=False)
         self.parser.add_argument("--avg_reprojection",
                                  help="if set, uses average reprojection loss",
-                                 action="store_true")
+                                 action="store_true",
+                                 default=False)
         self.parser.add_argument("--disable_automasking",
                                  help="if set, doesn't do auto-masking",
                                  action="store_true",
@@ -144,7 +146,7 @@ class MonodepthOptions:
         self.parser.add_argument("--num_workers",
                                  type=int,
                                  help="number of dataloader workers",
-                                 default=12)
+                                 default=4)
 
         # LOADING options
         self.parser.add_argument("--load_weights_folder",
@@ -175,7 +177,7 @@ class MonodepthOptions:
         self.parser.add_argument("--load_best_weights_folder",
                                  type=str,
                                  help="name of model to load",
-                                 default="logs/mono_640x192_20240329_01/best_weights")
+                                 default="logs/mono_640x192_res18_ft/models/weights_0.0k")
         self.parser.add_argument("--eval_stereo",
                                  help="if set evaluates in stereo mode",
                                  action="store_true",
