@@ -28,6 +28,7 @@ def compute_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths
     """
     thresh = np.maximum((gt / pred), (pred / gt))
+    a05 = (thresh < 1.25 ** 0.5).mean()
     a1 = (thresh < 1.25).mean()
     a2 = (thresh < 1.25 ** 2).mean()
     a3 = (thresh < 1.25 ** 3).mean()
@@ -42,7 +43,7 @@ def compute_errors(gt, pred):
 
     sq_rel = np.mean(((gt - pred) ** 2) / gt)
 
-    return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
+    return abs_rel, sq_rel, rmse, rmse_log, a05, a1, a2, a3
 
 
 def colorize(value: np.ndarray, vmin: float = None, vmax: float = None, cmap: str = "magma_r"):
@@ -219,7 +220,7 @@ def evaluate(opt):
         max = np.max(ratios)
         min = np.min(ratios)
     mean_errors = np.array(errors).mean(0)
-    depth_metric_names = ["abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"]
+    depth_metric_names = ["abs_rel", "sq_rel", "rmse", "rmse_log", "a0.5", "a1", "a2", "a3"]
     if opt.save_pred_metrics:
         output_path = os.path.join(
             opt.load_best_weights_folder, "metrics_val.txt")

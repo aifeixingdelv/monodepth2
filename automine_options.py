@@ -177,7 +177,7 @@ class MonodepthOptions:
         self.parser.add_argument("--load_best_weights_folder",
                                  type=str,
                                  help="name of model to load",
-                                 default="logs/mono_640x192_res18_ft/models/weights_0.0k")
+                                 default="logs/mono_1024x320_res18_ft/best_weights")
         self.parser.add_argument("--eval_stereo",
                                  help="if set evaluates in stereo mode",
                                  action="store_true",
@@ -210,7 +210,7 @@ class MonodepthOptions:
         self.parser.add_argument("--save_pred_depths",
                                  help="if set saves predicted depths",
                                  action="store_true",
-                                 default=False)
+                                 default=True)
         self.parser.add_argument("--save_pred_metrics",
                                  help="if set saves predicted metrics",
                                  action="store_true",
