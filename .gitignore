@@ -13,3 +13,4 @@ logs/mono_640x192_20240328/best_weights/metrics_val.txt
 logs/mono_640x192_20240329_01/best_weights/disps_val.npy
 logs/mono_640x192_20240329_01/best_weights/metrics_val.txt
 .idea/inspectionProfiles/Project_Default.xml
+logs/mono_1024x320_res18_ft/opt.json
