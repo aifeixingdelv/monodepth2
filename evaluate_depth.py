@@ -13,6 +13,11 @@ from options import MonodepthOptions
 import datasets
 import networks
 
+import PIL.Image as pil
+import matplotlib as mpl
+import matplotlib.cm as cm
+
+
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
 
@@ -82,7 +87,7 @@ def evaluate(opt):
 
         dataset = datasets.KITTIRAWDataset(opt.data_path, filenames,
                                            encoder_dict['height'], encoder_dict['width'],
-                                           [0], 4, is_train=False)
+                                           [0], 4, is_train=False, img_ext=".png")
         dataloader = DataLoader(dataset, 16, shuffle=False, num_workers=opt.num_workers,
                                 pin_memory=True, drop_last=False)
 
@@ -145,7 +150,7 @@ def evaluate(opt):
         print("-> Evaluation disabled. Done.")
         quit()
 
-    elif opt.eval_split == 'benchmark':
+    elif opt.eval_split == 'eigen':
         save_dir = os.path.join(opt.load_weights_folder, "benchmark_predictions")
         print("-> Saving out benchmark predictions to {}".format(save_dir))
         if not os.path.exists(save_dir):
@@ -153,17 +158,26 @@ def evaluate(opt):
 
         for idx in range(len(pred_disps)):
             disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
-            depth = STEREO_SCALE_FACTOR / disp_resized
-            depth = np.clip(depth, 0, 80)
-            depth = np.uint16(depth * 256)
-            save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
-            cv2.imwrite(save_path, depth)
+            vmax = np.percentile(disp_resized, 95)
+            normalizer = mpl.colors.Normalize(vmin=disp_resized.min(), vmax=vmax)
+            mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
+            colormapped_im = (mapper.to_rgba(disp_resized)[:, :, :3] * 255).astype(np.uint8)
+            im = pil.fromarray(colormapped_im)
+            name_dest_im = os.path.join(save_dir, "{:010d}.png".format(idx))
+            im.save(name_dest_im)
+            
+#             disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
+#             depth = STEREO_SCALE_FACTOR / disp_resized
+#             depth = np.clip(depth, 0, 80)
+#             depth = np.uint16(depth * 256)
+#             save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
+#             cv2.imwrite(save_path, depth)
 
         print("-> No ground truth is available for the KITTI benchmark, so not evaluating. Done.")
         quit()
 
     gt_path = os.path.join(splits_dir, opt.eval_split, "gt_depths.npz")
-    gt_depths = np.load(gt_path, fix_imports=True, encoding='latin1')["data"]
+    gt_depths = np.load(gt_path, fix_imports=True, encoding='latin1',allow_pickle=True)["data"]
 
     print("-> Evaluating")
 
@@ -221,7 +235,7 @@ def evaluate(opt):
     mean_errors = np.array(errors).mean(0)
 
     print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
-    print(("&{: 8.3f}  " * 7).format(*mean_errors.tolist()) + "\\\\")
+    print(("&{: 8.3f}  " * 7).format(*mean_errors.tolist()))
     print("\n-> Done!")
 
 

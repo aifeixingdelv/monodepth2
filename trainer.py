@@ -51,15 +51,28 @@ class Trainer:
         if self.opt.use_stereo:
             self.opt.frame_ids.append("s")
 
-        self.models["encoder"] = networks.ResnetEncoder(
-            self.opt.num_layers, self.opt.weights_init == "pretrained")
-        self.models["encoder"].to(self.device)
-        self.parameters_to_train += list(self.models["encoder"].parameters())
+        # 更新深度网络
+        self.models["mamba_unet"] = networks.VSSM(
+            patch_size=4,
+            in_chans=3,
+            num_classes=1,
+            depths=[2, 2, 9, 2],
+            dims=[96, 192, 384, 768],
+            d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
+            norm_layer=nn.LayerNorm, patch_norm=True,
+            use_checkpoint=False, final_upsample="expand_first")
+        self.models["mamba_unet"].to(self.device)
+        self.parameters_to_train += list(self.models["mamba_unet"].parameters())
 
-        self.models["depth"] = networks.DepthDecoder(
-            self.models["encoder"].num_ch_enc, self.opt.scales)
-        self.models["depth"].to(self.device)
-        self.parameters_to_train += list(self.models["depth"].parameters())
+        # self.models["encoder"] = networks.ResnetEncoder(
+        #     self.opt.num_layers, self.opt.weights_init == "pretrained")
+        # self.models["encoder"].to(self.device)
+        # self.parameters_to_train += list(self.models["encoder"].parameters())
+        #
+        # self.models["depth"] = networks.DepthDecoder(
+        #     self.models["encoder"].num_ch_enc, self.opt.scales)
+        # self.models["depth"].to(self.device)
+        # self.parameters_to_train += list(self.models["depth"].parameters())
 
         if self.use_pose_net:
             if self.opt.pose_model_type == "separate_resnet":
@@ -245,8 +258,10 @@ class Trainer:
             outputs = self.models["depth"](features[0])
         else:
             # Otherwise, we only feed the image with frame_id 0 through the depth encoder
-            features = self.models["encoder"](inputs["color_aug", 0, 0])
-            outputs = self.models["depth"](features)
+            features_out, features = self.models["mamba_unet"].forward_features(inputs[("color_aug", 0, 0)])
+            outputs = self.models["mamba_unet"].depth_forward_up_features(features_out, features)
+            # features = self.models["encoder"](inputs["color_aug", 0, 0])
+            # outputs = self.models["depth"](features)
 
         if self.opt.predictive_mask:
             outputs["predictive_mask"] = self.models["predictive_mask"](features)
@@ -364,7 +379,6 @@ class Trainer:
 
                 # from the authors of https://arxiv.org/abs/1712.00175
                 if self.opt.pose_model_type == "posecnn":
-
                     axisangle = outputs[("axisangle", 0, frame_id)]
                     translation = outputs[("translation", 0, frame_id)]
 
@@ -479,7 +493,7 @@ class Trainer:
 
             if not self.opt.disable_automasking:
                 outputs["identity_selection/{}".format(scale)] = (
-                    idxs > identity_reprojection_loss.shape[1] - 1).float()
+                        idxs > identity_reprojection_loss.shape[1] - 1).float()
 
             loss += to_optimise.mean()
 
@@ -531,9 +545,9 @@ class Trainer:
         samples_per_sec = self.opt.batch_size / duration
         time_sofar = time.time() - self.start_time
         training_time_left = (
-            self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
+                                     self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
         print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
-            " | loss: {:.5f} | time elapsed: {} | time left: {}"
+                       " | loss: {:.5f} | time elapsed: {} | time left: {}"
         print(print_string.format(self.epoch, batch_idx, samples_per_sec, loss,
                                   sec_to_hm_str(time_sofar), sec_to_hm_str(training_time_left)))
 
