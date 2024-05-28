@@ -23,10 +23,12 @@ def export_gt_depths_kitti():
     parser.add_argument('--data_path',
                         type=str,
                         help='path to the root of the KITTI data',
+                        default="../kitti",
                         required=True)
     parser.add_argument('--split',
                         type=str,
                         help='which split to export gt from',
+                        default="eigen",
                         required=True,
                         choices=["eigen", "eigen_benchmark"])
     opt = parser.parse_args()

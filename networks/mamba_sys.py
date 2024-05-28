@@ -922,6 +922,7 @@ class VSSM(nn.Module):
         return f"params {params} GFLOPs {sum(Gflops.values())}"
 
 
+
 # APIs with VMamba2Dp =================
 def check_vssm_equals_vmambadp():
     from bak.vmamba_bak1 import VMamba2Dp

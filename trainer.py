@@ -8,6 +8,7 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 import time
+import copy
 
 import torch
 import torch.nn.functional as F
@@ -606,7 +607,7 @@ class Trainer:
         for model_name, model in self.models.items():
             save_path = os.path.join(save_folder, "{}.pth".format(model_name))
             to_save = model.state_dict()
-            if model_name == 'encoder':
+            if model_name == 'mamba_unet':
                 # save the sizes - these are needed at prediction time
                 to_save['height'] = self.opt.height
                 to_save['width'] = self.opt.width
@@ -626,13 +627,31 @@ class Trainer:
         print("loading model from folder {}".format(self.opt.load_weights_folder))
 
         for n in self.opt.models_to_load:
-            print("Loading {} weights...".format(n))
             path = os.path.join(self.opt.load_weights_folder, "{}.pth".format(n))
             model_dict = self.models[n].state_dict()
             pretrained_dict = torch.load(path)
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            model_dict.update(pretrained_dict)
-            self.models[n].load_state_dict(model_dict)
+            if n == "mamba_unet":
+                pretrained_dict = pretrained_dict['model']
+                full_dict = copy.deepcopy(pretrained_dict)
+                for k, v in pretrained_dict.items():
+                    if "layers." in k:
+                        current_layer_num = 3 - int(k[7:8])
+                        current_k = "layers_up." + str(current_layer_num) + k[8:]
+                        full_dict.update({current_k: v})
+
+                for k in list(full_dict.keys()):
+                    if k in model_dict:
+                        if full_dict[k].shape != model_dict[k].shape:
+                            print("delete:{};shape pretrain:{};shape model:{}".format(k, v.shape, model_dict[k].shape))
+                            del full_dict[k]
+                msg = self.models[n].load_state_dict(full_dict, strict=False)
+                print("Loading {} weights successfully".format(n))
+                # print(msg)
+            else:
+                pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+                model_dict.update(pretrained_dict)
+                self.models[n].load_state_dict(model_dict)
+                print("Loading {} weights successfully".format(n))
 
         # loading adam state
         optimizer_load_path = os.path.join(self.opt.load_weights_folder, "adam.pth")

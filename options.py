@@ -30,7 +30,7 @@ class MonodepthOptions:
         self.parser.add_argument("--model_name",
                                  type=str,
                                  help="the name of the folder to save the model in",
-                                 default="mdp")
+                                 default="mamba_unet_1024x320_pretrained")
         self.parser.add_argument("--split",
                                  type=str,
                                  help="which training split to use",
@@ -152,7 +152,7 @@ class MonodepthOptions:
                                  nargs="+",
                                  type=str,
                                  help="models to load",
-                                 default=["pose_encoder", "pose"])
+                                 default=["mamba_unet", "pose_encoder", "pose"])
                                 # default=["encoder", "depth", "pose_encoder", "pose"])
 
         # LOGGING options
@@ -166,6 +166,10 @@ class MonodepthOptions:
                                  default=1)
 
         # EVALUATION options
+        self.parser.add_argument("--load_eval_weights_folder",
+                                 type=str,
+                                 help="models",
+                                 default="/root/autodl-tmp/monodepth2/logs/mdp/models/weights_11")
         self.parser.add_argument("--eval_stereo",
                                  help="if set evaluates in stereo mode",
                                  action="store_true")

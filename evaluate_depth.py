@@ -16,6 +16,8 @@ import networks
 import PIL.Image as pil
 import matplotlib as mpl
 import matplotlib.cm as cm
+from torch import nn
+import time
 
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
@@ -72,41 +74,61 @@ def evaluate(opt):
 
     if opt.ext_disp_to_eval is None:
 
-        opt.load_weights_folder = os.path.expanduser(opt.load_weights_folder)
+        opt.load_eval_weights_folder = os.path.expanduser(opt.load_eval_weights_folder)
 
-        assert os.path.isdir(opt.load_weights_folder), \
-            "Cannot find a folder at {}".format(opt.load_weights_folder)
+        assert os.path.isdir(opt.load_eval_weights_folder), \
+            "Cannot find a folder at {}".format(opt.load_eval_weights_folder)
 
-        print("-> Loading weights from {}".format(opt.load_weights_folder))
+        print("-> Loading weights from {}".format(opt.load_eval_weights_folder))
 
         filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
-        encoder_path = os.path.join(opt.load_weights_folder, "encoder.pth")
-        decoder_path = os.path.join(opt.load_weights_folder, "depth.pth")
 
-        encoder_dict = torch.load(encoder_path)
+        mamba_unet_path = os.path.join(opt.load_eval_weights_folder, "mamba_unet.pth")
+        mamba_unet_dict = torch.load(mamba_unet_path)
 
+        # encoder_path = os.path.join(opt.load_eval_weights_folder, "encoder.pth")
+        # decoder_path = os.path.join(opt.load_eval_weights_folder, "depth.pth")
+        # encoder_dict = torch.load(encoder_path)
         dataset = datasets.KITTIRAWDataset(opt.data_path, filenames,
-                                           encoder_dict['height'], encoder_dict['width'],
+                                           320, 1024,
                                            [0], 4, is_train=False, img_ext=".png")
         dataloader = DataLoader(dataset, 16, shuffle=False, num_workers=opt.num_workers,
                                 pin_memory=True, drop_last=False)
 
-        encoder = networks.ResnetEncoder(opt.num_layers, False)
-        depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
+        mamba_unet = networks.VSSM(
+            patch_size=4,
+            in_chans=3,
+            num_classes=1,
+            depths=[2, 2, 9, 2],
+            dims=[96, 192, 384, 768],
+            d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
+            norm_layer=nn.LayerNorm, patch_norm=True,
+            use_checkpoint=False, final_upsample="expand_first")
 
-        model_dict = encoder.state_dict()
-        encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
-        depth_decoder.load_state_dict(torch.load(decoder_path))
+        model_dict = mamba_unet.state_dict()
+        mamba_unet.load_state_dict({k: v for k, v in mamba_unet_dict.items() if k in model_dict})
+        mamba_unet.cuda()
+        mamba_unet.eval()
 
-        encoder.cuda()
-        encoder.eval()
-        depth_decoder.cuda()
-        depth_decoder.eval()
+        # encoder = networks.ResnetEncoder(opt.num_layers, False)
+        # depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
+
+        # model_dict = encoder.state_dict()
+        # encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
+        # depth_decoder.load_state_dict(torch.load(decoder_path))
+        #
+        # encoder.cuda()
+        # encoder.eval()
+        # depth_decoder.cuda()
+        # depth_decoder.eval()
 
         pred_disps = []
 
-        print("-> Computing predictions with size {}x{}".format(
-            encoder_dict['width'], encoder_dict['height']))
+        # print("-> Computing predictions with size {}x{}".format(
+        #     mamba_unet_dict['width'], mamba_unet_dict['height']))
+
+        total_time = 0  # Total inference time
+        total_steps = 0  # Total inference steps
 
         with torch.no_grad():
             for data in dataloader:
@@ -116,10 +138,17 @@ def evaluate(opt):
                     # Post-processed results require each image to have two forward passes
                     input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
 
-                output = depth_decoder(encoder(input_color))
+                start_time = time.time()  # Start time
 
+                # output = depth_decoder(encoder(i  nput_color))
+                features_out, features = mamba_unet.forward_features(input_color)
+                output = mamba_unet.depth_forward_up_features(features_out, features)
                 pred_disp, _ = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
                 pred_disp = pred_disp.cpu()[:, 0].numpy()
+
+                inference_time = (time.time() - start_time)* 1000   # Calculate inference time
+                total_time += inference_time
+                total_steps += input_color.shape[0]
 
                 if opt.post_process:
                     N = pred_disp.shape[0] // 2
@@ -142,7 +171,7 @@ def evaluate(opt):
 
     if opt.save_pred_disps:
         output_path = os.path.join(
-            opt.load_weights_folder, "disps_{}_split.npy".format(opt.eval_split))
+            opt.load_eval_weights_folder, "disps_{}_split.npy".format(opt.eval_split))
         print("-> Saving predicted disparities to ", output_path)
         np.save(output_path, pred_disps)
 
@@ -150,13 +179,14 @@ def evaluate(opt):
         print("-> Evaluation disabled. Done.")
         quit()
 
-    elif opt.eval_split == 'eigen':
-        save_dir = os.path.join(opt.load_weights_folder, "benchmark_predictions")
+    elif opt.eval_split == 'benchmark':
+        save_dir = os.path.join(opt.load_eval_weights_folder, "benchmark_predictions")
         print("-> Saving out benchmark predictions to {}".format(save_dir))
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
         for idx in range(len(pred_disps)):
+            # save color image
             disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
             vmax = np.percentile(disp_resized, 95)
             normalizer = mpl.colors.Normalize(vmin=disp_resized.min(), vmax=vmax)
@@ -236,6 +266,13 @@ def evaluate(opt):
 
     print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
     print(("&{: 8.3f}  " * 7).format(*mean_errors.tolist()))
+
+    average_time = total_time / total_steps  # Calculate average inference time
+    total_time = round(total_time, 3)
+    average_time = round(average_time, 3)
+    print(f"\nTotal inference time: {total_time} ms, Total inference steps: {total_steps}")
+    print(f"Average inference time: {average_time} ms")
+
     print("\n-> Done!")
 
 
