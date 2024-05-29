@@ -268,10 +268,12 @@ def evaluate(opt):
     print(("&{: 8.3f}  " * 7).format(*mean_errors.tolist()))
 
     average_time = total_time / total_steps  # Calculate average inference time
+    fps = 1000 / average_time
     total_time = round(total_time, 3)
     average_time = round(average_time, 3)
+    fps = round(fps, 3)
     print(f"\nTotal inference time: {total_time} ms, Total inference steps: {total_steps}")
-    print(f"Average inference time: {average_time} ms")
+    print(f"Average FPS: {fps} hz")
 
     print("\n-> Done!")
 

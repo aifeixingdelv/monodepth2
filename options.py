@@ -169,7 +169,7 @@ class MonodepthOptions:
         self.parser.add_argument("--load_eval_weights_folder",
                                  type=str,
                                  help="models",
-                                 default="/root/autodl-tmp/monodepth2/logs/mdp/models/weights_11")
+                                 default="/root/autodl-tmp/monodepth2/logs/mamba_unet_1024x320_pretrained/models/weights_0")
         self.parser.add_argument("--eval_stereo",
                                  help="if set evaluates in stereo mode",
                                  action="store_true")
