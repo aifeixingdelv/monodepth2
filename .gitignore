@@ -1,5 +1,7 @@
 __pycache__
 *.pyc
 kitti_data
-!models/
-!logs/
+models/*
+logs/*
+!models/.gitkeep
+!logs/.gitkeep
