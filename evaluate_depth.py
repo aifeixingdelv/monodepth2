@@ -83,44 +83,31 @@ def evaluate(opt):
 
         filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
 
-        mamba_unet_path = os.path.join(opt.load_eval_weights_folder, "mamba_unet.pth")
-        mamba_unet_dict = torch.load(mamba_unet_path)
+        # mamba_unet_path = os.path.join(opt.load_eval_weights_folder, "mamba_unet.pth")
+        # mamba_unet_dict = torch.load(mamba_unet_path)
 
-        # encoder_path = os.path.join(opt.load_eval_weights_folder, "encoder.pth")
-        # decoder_path = os.path.join(opt.load_eval_weights_folder, "depth.pth")
-        # encoder_dict = torch.load(encoder_path)
+        encoder_path = os.path.join(opt.load_eval_weights_folder, "encoder.pth")
+        decoder_path = os.path.join(opt.load_eval_weights_folder, "depth.pth")
+        encoder_dict = torch.load(encoder_path)
+        decoder_dict = torch.load(decoder_path)
         dataset = datasets.KITTIRAWDataset(opt.data_path, filenames,
                                            320, 1024,
                                            [0], 4, is_train=False, img_ext=".png")
         dataloader = DataLoader(dataset, 16, shuffle=False, num_workers=opt.num_workers,
                                 pin_memory=True, drop_last=False)
 
-        mamba_unet = networks.VSSM(
-            patch_size=4,
-            in_chans=3,
-            num_classes=1,
-            depths=[2, 2, 9, 2],
-            dims=[96, 192, 384, 768],
-            d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-            norm_layer=nn.LayerNorm, patch_norm=True,
-            use_checkpoint=False, final_upsample="expand_first")
+        encoder = networks.MambaEncoder()
+        depth_decoder = networks.MambaDepthDecoder()
 
-        model_dict = mamba_unet.state_dict()
-        mamba_unet.load_state_dict({k: v for k, v in mamba_unet_dict.items() if k in model_dict})
-        mamba_unet.cuda()
-        mamba_unet.eval()
+        encoder_model_dict = encoder.state_dict()
+        decoder_model_dict = depth_decoder.state_dict()
+        encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in encoder_model_dict})
+        depth_decoder.load_state_dict({k: v for k, v in decoder_dict.items() if k in decoder_model_dict})
 
-        # encoder = networks.ResnetEncoder(opt.num_layers, False)
-        # depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
-
-        # model_dict = encoder.state_dict()
-        # encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
-        # depth_decoder.load_state_dict(torch.load(decoder_path))
-        #
-        # encoder.cuda()
-        # encoder.eval()
-        # depth_decoder.cuda()
-        # depth_decoder.eval()
+        encoder.cuda()
+        encoder.eval()
+        depth_decoder.cuda()
+        depth_decoder.eval()
 
         pred_disps = []
 
@@ -141,8 +128,8 @@ def evaluate(opt):
                 start_time = time.time()  # Start time
 
                 # output = depth_decoder(encoder(i  nput_color))
-                features_out, features = mamba_unet.forward_features(input_color)
-                output = mamba_unet.depth_forward_up_features(features_out, features)
+                features = encoder(input_color)
+                output = depth_decoder(features)
                 pred_disp, _ = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
                 pred_disp = pred_disp.cpu()[:, 0].numpy()
 
