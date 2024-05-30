@@ -53,17 +53,17 @@ class Trainer:
             self.opt.frame_ids.append("s")
 
         # 更新深度网络
-        self.models["mamba_unet"] = networks.VSSM(
-            patch_size=4,
-            in_chans=3,
-            num_classes=1,
-            depths=[2, 2, 9, 2],
-            dims=[96, 192, 384, 768],
-            d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-            norm_layer=nn.LayerNorm, patch_norm=True,
-            use_checkpoint=False, final_upsample="expand_first")
-        self.models["mamba_unet"].to(self.device)
-        self.parameters_to_train += list(self.models["mamba_unet"].parameters())
+        # self.models["mamba_unet"] = networks.VSSM(
+        #     patch_size=4,
+        #     in_chans=3,
+        #     num_classes=1,
+        #     depths=[2, 2, 9, 2],
+        #     dims=[96, 192, 384, 768],
+        #     d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
+        #     norm_layer=nn.LayerNorm, patch_norm=True,
+        #     use_checkpoint=False, final_upsample="expand_first")
+        # self.models["mamba_unet"].to(self.device)
+        # self.parameters_to_train += list(self.models["mamba_unet"].parameters())
 
         # self.models["encoder"] = networks.ResnetEncoder(
         #     self.opt.num_layers, self.opt.weights_init == "pretrained")
@@ -74,6 +74,15 @@ class Trainer:
         #     self.models["encoder"].num_ch_enc, self.opt.scales)
         # self.models["depth"].to(self.device)
         # self.parameters_to_train += list(self.models["depth"].parameters())
+
+        self.models["encoder"] = networks.MambaEncoder(
+            pretrained_path="/root/autodl-tmp/monodepth2/models/pretrained/vmamba_tiny_e292.pth")
+        self.models["encoder"].to(self.device)
+        self.parameters_to_train += list(self.models["encoder"].parameters())
+
+        self.models["depth"] = networks.MambaDepthDecoder()
+        self.models["depth"].to(self.device)
+        self.parameters_to_train += list(self.models["depth"].parameters())
 
         if self.use_pose_net:
             if self.opt.pose_model_type == "separate_resnet":
@@ -259,10 +268,10 @@ class Trainer:
             outputs = self.models["depth"](features[0])
         else:
             # Otherwise, we only feed the image with frame_id 0 through the depth encoder
-            features_out, features = self.models["mamba_unet"].forward_features(inputs[("color_aug", 0, 0)])
-            outputs = self.models["mamba_unet"].depth_forward_up_features(features_out, features)
-            # features = self.models["encoder"](inputs["color_aug", 0, 0])
-            # outputs = self.models["depth"](features)
+            # features_out, features = self.models["mamba_unet"].forward_features(inputs[("color_aug", 0, 0)])
+            # outputs = self.models["mamba_unet"].depth_forward_up_features(features_out, features)
+            features = self.models["encoder"](inputs["color_aug", 0, 0])
+            outputs = self.models["depth"](features)
 
         if self.opt.predictive_mask:
             outputs["predictive_mask"] = self.models["predictive_mask"](features)
@@ -630,28 +639,10 @@ class Trainer:
             path = os.path.join(self.opt.load_weights_folder, "{}.pth".format(n))
             model_dict = self.models[n].state_dict()
             pretrained_dict = torch.load(path)
-            if n == "mamba_unet":
-                pretrained_dict = pretrained_dict['model']
-                full_dict = copy.deepcopy(pretrained_dict)
-                for k, v in pretrained_dict.items():
-                    if "layers." in k:
-                        current_layer_num = 3 - int(k[7:8])
-                        current_k = "layers_up." + str(current_layer_num) + k[8:]
-                        full_dict.update({current_k: v})
-
-                for k in list(full_dict.keys()):
-                    if k in model_dict:
-                        if full_dict[k].shape != model_dict[k].shape:
-                            print("delete:{};shape pretrain:{};shape model:{}".format(k, v.shape, model_dict[k].shape))
-                            del full_dict[k]
-                msg = self.models[n].load_state_dict(full_dict, strict=False)
-                print("Loading {} weights successfully".format(n))
-                # print(msg)
-            else:
-                pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-                model_dict.update(pretrained_dict)
-                self.models[n].load_state_dict(model_dict)
-                print("Loading {} weights successfully".format(n))
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+            model_dict.update(pretrained_dict)
+            self.models[n].load_state_dict(model_dict)
+            print("Loading {} weights successfully".format(n))
 
         # loading adam state
         optimizer_load_path = os.path.join(self.opt.load_weights_folder, "adam.pth")

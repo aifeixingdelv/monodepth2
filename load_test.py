@@ -1,36 +1,53 @@
+import networks
+import torchvision.transforms as transforms
 import torch
-from networks.mamba_sys import VSSM
+from PIL import Image
+import cv2
+import numpy as np
+import PIL.Image as pil
+import matplotlib as mpl
+import matplotlib.cm as cm
+from torch import nn
+import time
 
-import copy
+torch.cuda.empty_cache()
+MamEncoder = networks.MambaEncoder(
+    pretrained_path="/root/autodl-tmp/monodepth2/models/mono_1024x320/vmamba_tiny_e292.pth").cuda()
+MamDecoder = networks.MambaDepthDecoder().cuda()
 
-model = VSSM(
-    patch_size=4,
-    in_chans=3,
-    num_classes=1,
-    depths=[2, 2, 9, 2],
-    dims=[96, 192, 384, 768],
-    d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-    norm_layer=torch.nn.LayerNorm, patch_norm=True,
-    use_checkpoint=False, final_upsample="expand_first")
+total_params = sum(p.numel() for p in MamDecoder.parameters())
+trainable_params = sum(p.numel() for p in MamDecoder.parameters() if p.requires_grad)
 
-model_dict = model.state_dict()
+def format_params(num):
+    if num >= 1e6:
+        return f"{num / 1e6:.2f}M"
+    elif num >= 1e3:
+        return f"{num / 1e3:.2f}K"
+    else:
+        return str(num)
 
-pretrained_model_path = "models/mono_1024x320/mamba_unet.pth"
-pretrained_dict = torch.load(pretrained_model_path)
-pretrained_dict = pretrained_dict['model']
-full_dict = copy.deepcopy(pretrained_dict)
-for k, v in pretrained_dict.items():
-    if "layers." in k:
-        current_layer_num = 3 - int(k[7:8])
-        current_k = "layers_up." + str(current_layer_num) + k[8:]
-        full_dict.update({current_k: v})
+total_params_readable = format_params(total_params)
+trainable_params_readable = format_params(trainable_params)
 
-for k in list(full_dict.keys()):
-    if k in model_dict:
-        if full_dict[k].shape != model_dict[k].shape:
-            print("delete:{};shape pretrain:{};shape model:{}".format(k, v.shape, model_dict[k].shape))
-            del full_dict[k]
-print(full_dict.keys())
-msg = model.load_state_dict(full_dict, strict=False)
-# print(msg)
+print(f"Total parameters: {total_params_readable}")
+print(f"Trainable parameters: {trainable_params_readable}")
+
+img = Image.open("/root/autodl-tmp/monodepth2/assets/kitti.png")
+transform = transforms.Compose([
+    transforms.Resize((320, 1024)),  # Resize the image to 1024x320
+    transforms.ToTensor()  # Convert the image to a torch.Tensor
+])
+img = transform(img).unsqueeze(0).cuda()
+feature = MamEncoder(img)
+output = MamDecoder(feature)
+pred_disp = output[("disp", 0)].squeeze(0).squeeze(0).cpu().detach().numpy()
+print(pred_disp.shape)
+disp_resized = cv2.resize(pred_disp, (1216, 352))
+vmax = np.percentile(disp_resized, 95)
+normalizer = mpl.colors.Normalize(vmin=disp_resized.min(), vmax=vmax)
+mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
+colormapped_im = (mapper.to_rgba(disp_resized)[:, :, :3] * 255).astype(np.uint8)
+im = pil.fromarray(colormapped_im)
+im.save("assets/depth.png")
+
 
