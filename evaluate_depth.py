@@ -83,9 +83,6 @@ def evaluate(opt):
 
         filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
 
-        # mamba_unet_path = os.path.join(opt.load_eval_weights_folder, "mamba_unet.pth")
-        # mamba_unet_dict = torch.load(mamba_unet_path)
-
         encoder_path = os.path.join(opt.load_eval_weights_folder, "encoder.pth")
         decoder_path = os.path.join(opt.load_eval_weights_folder, "depth.pth")
         encoder_dict = torch.load(encoder_path)
@@ -166,14 +163,18 @@ def evaluate(opt):
         print("-> Evaluation disabled. Done.")
         quit()
 
-    elif opt.eval_split == 'benchmark':
-        save_dir = os.path.join(opt.load_eval_weights_folder, "benchmark_predictions")
-        print("-> Saving out benchmark predictions to {}".format(save_dir))
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+    elif opt.eval_split == 'eigen':
+        # save_dir = os.path.join(opt.load_eval_weights_folder, "benchmark_predictions")
+        # print("-> Saving out benchmark predictions to {}".format(save_dir))
+        # if not os.path.exists(save_dir):
+        #     os.makedirs(save_dir)
 
         for idx in range(len(pred_disps)):
             # save color image
+            save_dir = os.path.join(opt.load_eval_weights_folder, "color_image")
+            print("-> Saving out benchmark predictions to {}".format(save_dir))
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
             disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
             vmax = np.percentile(disp_resized, 95)
             normalizer = mpl.colors.Normalize(vmin=disp_resized.min(), vmax=vmax)
@@ -183,12 +184,17 @@ def evaluate(opt):
             name_dest_im = os.path.join(save_dir, "{:010d}.png".format(idx))
             im.save(name_dest_im)
             
-#             disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
-#             depth = STEREO_SCALE_FACTOR / disp_resized
-#             depth = np.clip(depth, 0, 80)
-#             depth = np.uint16(depth * 256)
-#             save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
-#             cv2.imwrite(save_path, depth)
+            # save gray imgae
+            # save_dir = os.path.join(opt.load_eval_weights_folder, "gray_image")
+            # print("-> Saving out benchmark predictions to {}".format(save_dir))
+            # if not os.path.exists(save_dir):
+            #     os.makedirs(save_dir)
+            # disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
+            # depth = STEREO_SCALE_FACTOR / disp_resized
+            # depth = np.clip(depth, 0, 80)
+            # depth = np.uint16(depth * 256)
+            # save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
+            # cv2.imwrite(save_path, depth)
 
         print("-> No ground truth is available for the KITTI benchmark, so not evaluating. Done.")
         quit()
