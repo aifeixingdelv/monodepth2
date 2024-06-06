@@ -25,6 +25,8 @@ from layers import *
 import datasets
 import networks
 from IPython import embed
+import timm
+from timm.models import create_model
 
 
 class Trainer:
@@ -53,34 +55,11 @@ class Trainer:
             self.opt.frame_ids.append("s")
 
         # 更新深度网络
-        # self.models["mamba_unet"] = networks.VSSM(
-        #     patch_size=4,
-        #     in_chans=3,
-        #     num_classes=1,
-        #     depths=[2, 2, 9, 2],
-        #     dims=[96, 192, 384, 768],
-        #     d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-        #     norm_layer=nn.LayerNorm, patch_norm=True,
-        #     use_checkpoint=False, final_upsample="expand_first")
-        # self.models["mamba_unet"].to(self.device)
-        # self.parameters_to_train += list(self.models["mamba_unet"].parameters())
-
-        # self.models["encoder"] = networks.ResnetEncoder(
-        #     self.opt.num_layers, self.opt.weights_init == "pretrained")
-        # self.models["encoder"].to(self.device)
-        # self.parameters_to_train += list(self.models["encoder"].parameters())
-        #
-        # self.models["depth"] = networks.DepthDecoder(
-        #     self.models["encoder"].num_ch_enc, self.opt.scales)
-        # self.models["depth"].to(self.device)
-        # self.parameters_to_train += list(self.models["depth"].parameters())
-
-        self.models["encoder"] = networks.MambaEncoder(
-            pretrained_path="/root/autodl-tmp/monodepth2/models/pretrained/vmamba_tiny_e292.pth")
+        self.models["encoder"] = create_model("mpvim_tiny", pretrained=False)
         self.models["encoder"].to(self.device)
         self.parameters_to_train += list(self.models["encoder"].parameters())
 
-        self.models["depth"] = networks.MambaDepthDecoder()
+        self.models["depth"] = networks.MPViMDepthDecoder(encoder="tiny")
         self.models["depth"].to(self.device)
         self.parameters_to_train += list(self.models["depth"].parameters())
 
@@ -88,7 +67,7 @@ class Trainer:
             if self.opt.pose_model_type == "separate_resnet":
                 self.models["pose_encoder"] = networks.ResnetEncoder(
                     self.opt.num_layers,
-                    self.opt.weights_init == "pretrained",
+                    self.opt.weights_init == False,
                     num_input_images=self.num_pose_frames)
 
                 self.models["pose_encoder"].to(self.device)
@@ -270,7 +249,7 @@ class Trainer:
             # Otherwise, we only feed the image with frame_id 0 through the depth encoder
             # features_out, features = self.models["mamba_unet"].forward_features(inputs[("color_aug", 0, 0)])
             # outputs = self.models["mamba_unet"].depth_forward_up_features(features_out, features)
-            features = self.models["encoder"](inputs["color_aug", 0, 0])
+            features = self.models["encoder"].forward_features(inputs["color_aug", 0, 0])
             outputs = self.models["depth"](features)
 
         if self.opt.predictive_mask:
@@ -347,7 +326,7 @@ class Trainer:
         """
         self.set_eval()
         try:
-            inputs = self.val_iter.next()
+            inputs = next(self.val_iter)
         except StopIteration:
             self.val_iter = iter(self.val_loader)
             inputs = self.val_iter.next()

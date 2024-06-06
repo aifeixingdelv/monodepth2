@@ -30,7 +30,7 @@ class MonodepthOptions:
         self.parser.add_argument("--model_name",
                                  type=str,
                                  help="the name of the folder to save the model in",
-                                 default="mamba_pretrained_e+cnn_d_1024x320")
+                                 default="mpvim_nopretrained_e+cnn_d_1024x320")
         self.parser.add_argument("--split",
                                  type=str,
                                  help="which training split to use",
@@ -88,7 +88,7 @@ class MonodepthOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=4)
+                                 default=6)
         self.parser.add_argument("--learning_rate",
                                  type=float,
                                  help="learning rate",
